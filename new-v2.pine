@@ -25,6 +25,7 @@ rsi = ta.rsi(close, rsiLength)
 ema200 = ta.ema(close, emaLength)
 ema20 = ta.ema(close, 20)
 avgVolume = ta.sma(volume, 20)
+[macdLine, signalLine, macdHist] = ta.macd(close, 12, 26, 9)
 
 // Time filter
 inSession = true
@@ -46,11 +47,14 @@ volumeWasHigh = ta.highest(volume, 20) > avgVolume * volumeMultiplier
 // 3. Price crosses above EMA 20
 emaCrossUp = ta.crossover(close, ema20)
 
-// 4. Price above EMA 200 (optional)
+// 4. MACD bullish (MACD line > Signal line)
+macdBullish = macdLine > signalLine
+
+// 5. Price above EMA 200 (optional)
 trendCondition = useEmaFilter ? close > ema200 : true
 
 // Combined signal
-buySignal = rsiWasOversold and volumeWasHigh and emaCrossUp and trendCondition and inSession
+buySignal = rsiWasOversold and volumeWasHigh and emaCrossUp and macdBullish and trendCondition and inSession
 
 // ========== CALCULATIONS FOR LABELS ==========
 stopLoss = close * (1 - stopLossPercent / 100)
@@ -93,7 +97,7 @@ if buySignal
 
 // ========== DEBUG INFO ==========
 if showDebug
-    var table debugTable = table.new(position.top_right, 2, 6, border_width=1)
+    var table debugTable = table.new(position.top_right, 2, 7, border_width=1)
     
     if barstate.islast
         table.cell(debugTable, 0, 0, "RSI", text_color=color.white, bgcolor=color.new(color.blue, 70))
@@ -111,8 +115,11 @@ if showDebug
         table.cell(debugTable, 0, 4, "EMA 20 Cross Up", text_color=color.white, bgcolor=color.new(color.blue, 70))
         table.cell(debugTable, 1, 4, emaCrossUp ? "✓" : "✗", text_color=emaCrossUp ? color.lime : color.red)
         
-        table.cell(debugTable, 0, 5, "ALL CONDITIONS", text_color=color.white, bgcolor=color.new(color.orange, 50))
-        table.cell(debugTable, 1, 5, buySignal ? "BUY ✓" : "Wait", text_color=buySignal ? color.lime : color.orange, bgcolor=buySignal ? color.new(color.green, 80) : na)
+        table.cell(debugTable, 0, 5, "MACD > Signal", text_color=color.white, bgcolor=color.new(color.blue, 70))
+        table.cell(debugTable, 1, 5, macdBullish ? "✓" : "✗", text_color=macdBullish ? color.lime : color.red)
+        
+        table.cell(debugTable, 0, 6, "ALL CONDITIONS", text_color=color.white, bgcolor=color.new(color.orange, 50))
+        table.cell(debugTable, 1, 6, buySignal ? "BUY ✓" : "Wait", text_color=buySignal ? color.lime : color.orange, bgcolor=buySignal ? color.new(color.green, 80) : na)
 
 // ========== BACKGROUND COLORING ==========
 bgcolor(rsi < rsiOversold ? color.new(color.red, 95) : na, title="Oversold Zone")
