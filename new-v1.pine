@@ -1,0 +1,89 @@
+//@version=5
+indicator("Penny Stock Reversal", overlay=true, max_labels_count=500)
+
+// ========== SETTINGS ==========
+rsiLength = input.int(14, "RSI Length", minval=1)
+rsiOversold = input.int(35, "RSI Oversold Level", minval=1, maxval=50)
+volumeMultiplier = input.float(2.0, "Volume Spike Multiplier", minval=1.0, step=0.1)
+emaLength = input.int(200, "EMA Length (Trend Filter)", minval=1)
+stopLossPercent = input.float(2.5, "Stop Loss %", minval=0.5, maxval=10, step=0.1)
+takeProfitPercent = input.float(7.5, "Take Profit %", minval=1, maxval=20, step=0.5)
+
+// Time Filter
+startHour = input.int(9, "Start Hour", minval=0, maxval=23)
+startMinute = input.int(45, "Start Minute", minval=0, maxval=59)
+endHour = input.int(15, "End Hour", minval=0, maxval=23)
+endMinute = input.int(30, "End Minute", minval=0, maxval=59)
+
+// ========== CALCULATIONS ==========
+rsi = ta.rsi(close, rsiLength)
+ema200 = ta.ema(close, emaLength)
+avgVolume = ta.sma(volume, 20)
+
+// Time filter
+h = hour(time)
+m = minute(time)
+startTime = startHour * 60 + startMinute
+endTime = endHour * 60 + endMinute
+currTime = h * 60 + m
+inSession = currTime >= startTime and currTime <= endTime
+
+// ========== SIGNAL CONDITIONS ==========
+// 1. RSI oversold and turning up
+rsiCondition = rsi < rsiOversold and rsi > rsi[1]
+
+// 2. Volume spike
+volumeCondition = volume > avgVolume * volumeMultiplier
+
+// 3. Price above EMA (not in strong downtrend)
+trendCondition = close > ema200
+
+// 4. Current candle is green and higher than previous
+priceCondition = close > open and close > close[1]
+
+// Combined signal
+buySignal = rsiCondition and volumeCondition and trendCondition and priceCondition and inSession
+
+// ========== CALCULATIONS FOR LABELS ==========
+stopLoss = close * (1 - stopLossPercent / 100)
+takeProfit1 = close * (1 + takeProfitPercent / 100)
+takeProfit2 = close * (1 + takeProfitPercent * 1.5 / 100)
+riskReward = takeProfitPercent / stopLossPercent
+
+// ========== PLOTTING ==========
+plot(ema200, "EMA 200", color=color.new(color.gray, 60), linewidth=1)
+
+// Buy Signal Label
+if buySignal
+    labelText = "BUY"
+    tooltipText = "Entry: " + str.tostring(close, "#.####") + 
+                  "\nStop Loss: " + str.tostring(stopLoss, "#.####") + " (-" + str.tostring(stopLossPercent) + "%)" +
+                  "\nTP1: " + str.tostring(takeProfit1, "#.####") + " (+" + str.tostring(takeProfitPercent) + "%)" +
+                  "\nTP2: " + str.tostring(takeProfit2, "#.####") + " (+" + str.tostring(takeProfitPercent * 1.5) + "%)" +
+                  "\nRSI: " + str.tostring(rsi, "#.##") +
+                  "\nVolume: " + str.tostring(volume / avgVolume, "#.##") + "x avg" +
+                  "\nR:R = 1:" + str.tostring(riskReward, "#.##")
+    
+    label.new(bar_index, low * 0.998, 
+              text=labelText, 
+              style=label.style_label_up, 
+              color=color.new(#00ff88, 20),
+              textcolor=color.white,
+              size=size.small,
+              tooltip=tooltipText)
+    
+    // Draw Stop Loss and Take Profit lines
+    line.new(bar_index, stopLoss, bar_index + 10, stopLoss, 
+             color=color.new(color.red, 70), width=1, style=line.style_dashed)
+    
+    line.new(bar_index, takeProfit1, bar_index + 10, takeProfit1, 
+             color=color.new(color.green, 70), width=1, style=line.style_dashed)
+    
+    line.new(bar_index, takeProfit2, bar_index + 10, takeProfit2, 
+             color=color.new(color.blue, 70), width=1, style=line.style_dashed)
+
+// ========== BACKGROUND COLORING ==========
+bgcolor(rsi < rsiOversold ? color.new(color.red, 95) : na, title="Oversold Zone")
+
+// ========== ALERTS ==========
+alertcondition(buySignal, title="Buy Signal", message="Penny Stock Reversal: BUY Signal Detected!")
